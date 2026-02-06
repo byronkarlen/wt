@@ -1,14 +1,32 @@
 wt() {
+  _wt_usage() {
+    cat <<EOF
+usage:
+  wt [go] <#|branch>   go to worktree (creates if branch exists)
+  wt [go] 0|home       go to main repo
+  wt [go] -            go to previous worktree
+  wt new <branch>      create new branch and worktree
+  wt rm <#|branch>     remove worktree
+  wt rm -b <#|branch>  remove worktree and delete branch
+  wt list              list worktrees (raw)
+  wt status            show branches and worktree status
+EOF
+  }
+
+  # Handle help before git repo check so it works anywhere
+  if [[ "$1" == "-h" || "$1" == "--help" || "$1" == "help" ]]; then
+    _wt_usage
+    return 0
+  fi
+
   local home_repo home_repo_parent repo_name wt_base target branch
 
   # Get home repo (first worktree is always the main one)
-  home_repo=$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //') || {
-    echo "wt: not inside a git repository" >&2
-    return 1
-  }
+  home_repo=$(git worktree list --porcelain 2>/dev/null | head -1 | sed 's/^worktree //')
 
   [[ -z "$home_repo" ]] && {
     echo "wt: not inside a git repository" >&2
+    _wt_usage >&2
     return 1
   }
 
@@ -96,20 +114,6 @@ wt() {
     '
   }
 
-  _wt_usage() {
-    cat <<EOF
-usage:
-  wt [go] <#|branch>   go to worktree (creates if branch exists)
-  wt [go] 0|home       go to main repo
-  wt [go] -            go to previous worktree
-  wt new <branch>      create new branch and worktree
-  wt rm <#|branch>     remove worktree
-  wt rm -b <#|branch>  remove worktree and delete branch
-  wt list              list worktrees (raw)
-  wt status            show branches and worktree status
-EOF
-  }
-
   # Navigate to a worktree by number, branch, or special target
   _wt_go() {
     local target="$1"
@@ -195,10 +199,6 @@ EOF
   }
 
   case "$1" in
-    -h|--help|help)
-      _wt_usage
-      ;;
-
     home)
       _WT_PREV=$(git rev-parse --show-toplevel 2>/dev/null)
       cd "$home_repo"
