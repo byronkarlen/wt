@@ -162,11 +162,25 @@ EOF
       return
     fi
 
-    # Branch exists but no worktree -> create one
+    # Local branch exists but no worktree -> create one
     if git show-ref --verify --quiet "refs/heads/$target"; then
       wt_dir="$wt_base/$(_wt_next_dir)"
       mkdir -p "$wt_base"
       git worktree add "$wt_dir" "$target" || return 1
+      _wt_copy_files "$home_repo" "$wt_dir"
+      cd "$wt_base"
+      _wt_run_hooks "setup"
+      _WT_PREV="$current_wt"
+      cd "$wt_dir"
+      _wt_run_hooks "init"
+      return
+    fi
+
+    # Remote branch exists but no local branch -> create worktree tracking remote
+    if git show-ref --verify --quiet "refs/remotes/origin/$target"; then
+      wt_dir="$wt_base/$(_wt_next_dir)"
+      mkdir -p "$wt_base"
+      git worktree add "$wt_dir" -b "$target" "origin/$target" || return 1
       _wt_copy_files "$home_repo" "$wt_dir"
       cd "$wt_base"
       _wt_run_hooks "setup"
