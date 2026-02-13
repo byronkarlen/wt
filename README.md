@@ -32,6 +32,9 @@ wt [go] -            go to previous worktree
 wt new <branch>      create new branch and worktree
 wt rm <#|branch>     remove worktree
 wt rm -b <#|branch>  remove worktree and delete branch
+wt cleanup           remove worktrees for merged branches
+wt cleanup -f        force remove (even with uncommitted changes)
+wt cleanup -n        dry run (show what would be removed)
 wt list              list worktrees (raw)
 wt status            show branches and worktree status
 ```
