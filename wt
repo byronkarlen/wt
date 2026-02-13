@@ -8,6 +8,7 @@ usage:
   wt new <branch>      create new branch and worktree
   wt rm <#|branch>     remove worktree
   wt rm -b <#|branch>  remove worktree and delete branch
+  wt cleanup [-f] [-n] remove worktrees for merged branches
   wt list              list worktrees (raw)
   wt status            show branches and worktree status
 EOF
@@ -198,6 +199,17 @@ EOF
     return 1
   }
 
+  # Get the main/master branch name
+  _wt_main_branch() {
+    for ref in refs/heads/main refs/heads/master; do
+      if git show-ref --verify --quiet "$ref"; then
+        echo "${ref##*/}"
+        return
+      fi
+    done
+    echo "main"
+  }
+
   case "$1" in
     home)
       _WT_PREV=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -286,6 +298,68 @@ EOF
       git worktree remove "$wt_dir" || return 1
       [[ -n "$branch_to_delete" ]] && git branch -d "$branch_to_delete"
       return 0
+      ;;
+
+    cleanup)
+      local main_branch=$(_wt_main_branch)
+      local dry_run=false force=false
+      for arg in "${@:2}"; do
+        case "$arg" in
+          -n|--dry-run) dry_run=true ;;
+          -f|--force) force=true ;;
+        esac
+      done
+      local -a remove_args=(git worktree remove)
+      $force && remove_args+=(--force)
+
+      # Prune remote refs so we can detect deleted remote branches
+      git fetch --prune 2>/dev/null
+
+      local cleaned=0
+      local wt_path wt_branch
+
+      while IFS= read -r line; do
+        [[ "$line" == worktree\ * ]] && wt_path="${line#worktree }"
+        if [[ "$line" == branch\ * ]]; then
+          wt_branch="${line#branch refs/heads/}"
+
+          # Skip home repo and main branch
+          [[ "$wt_path" == "$home_repo" ]] && continue
+          [[ "$wt_branch" == "$main_branch" ]] && continue
+
+          # Only consider worktrees under our wt_base
+          [[ "$wt_path" != "$wt_base"/* ]] && continue
+
+          # Branch is merged if:
+          # 1. It's an ancestor of main (true merge), or
+          # 2. Its remote tracking branch was deleted (squash merge)
+          local merged=false
+          if git merge-base --is-ancestor "refs/heads/$wt_branch" "refs/heads/$main_branch" 2>/dev/null \
+            || git merge-base --is-ancestor "refs/heads/$wt_branch" "refs/remotes/origin/$main_branch" 2>/dev/null; then
+            merged=true
+          elif ! git show-ref --verify --quiet "refs/remotes/origin/$wt_branch" 2>/dev/null; then
+            # Remote branch is gone — likely squash-merged and deleted
+            merged=true
+          fi
+
+          if $merged; then
+            if $dry_run; then
+              echo "would remove: $wt_branch ($(basename "$wt_path"))"
+            else
+              echo "removing: $wt_branch ($(basename "$wt_path"))"
+              [[ "$PWD" == "$wt_path"* ]] && cd "$home_repo"
+              "${remove_args[@]}" "$wt_path" && git branch -D "$wt_branch" 2>/dev/null
+            fi
+            ((cleaned++))
+          fi
+        fi
+      done < <(git worktree list --porcelain)
+
+      if (( cleaned == 0 )); then
+        echo "wt: no merged worktrees to clean up"
+      elif $dry_run; then
+        echo "($cleaned worktree(s) would be removed, run without -n to apply)"
+      fi
       ;;
 
     list)
