@@ -1,14 +1,14 @@
 # wt
 
-A zsh function for managing git worktrees with minimal friction.
+A zsh function for managing git worktrees with minimal friction. Compatible with [Claude Code](https://claude.ai/code) worktree conventions.
 
 ## Features
 
+- Named worktrees stored in `.claude/worktrees/<name>/`
 - Short numeric aliases for worktrees (`wt 1`, `wt 2`, etc.)
 - `wt 0` or `wt home` to return to main repo
 - `wt -` to jump to previous worktree
 - Auto-creates worktree when navigating to an existing branch
-- Configurable file copying and hooks via `.worktree` config
 - `wt status` overview of all branches and worktrees
 
 ## Recommended Installation
@@ -26,25 +26,26 @@ A zsh function for managing git worktrees with minimal friction.
 ## Usage
 
 ```
-wt [go] <#|branch>   go to worktree (creates if branch exists)
-wt [go] 0|home       go to main repo
-wt [go] -            go to previous worktree
-wt new <branch>      create new branch and worktree
-wt rm <#|branch>     remove worktree
-wt rm -b <#|branch>  remove worktree and delete branch
-wt list              list worktrees (raw)
-wt status            show branches and worktree status
+wt [go] <#|name|branch>   go to worktree (creates if branch exists)
+wt [go] 0|home            go to main repo
+wt [go] -                 go to previous worktree
+wt new [name]             create new worktree (branch: worktree-<name>)
+                            (no name: move current branch from home)
+wt rm <#|name|branch>     remove worktree
+wt rm -b <#|name|branch>  remove worktree and delete branch
+wt list                   list worktrees (raw)
+wt status                 show branches and worktree status
 ```
 
 ### Examples
 
 ```bash
-wt new feature-x     # Create new branch and worktree
-wt 1                 # Go to worktree 1
-wt feature-x         # Go to worktree by branch name
+wt new feature-x     # Create .claude/worktrees/feature-x/ with branch worktree-feature-x
+wt 1                 # Go to first worktree (alphabetical order)
+wt feature-x         # Go to worktree by name
 wt 0                 # Go back to main repo
 wt -                 # Go to previous worktree
-wt rm 1              # Remove worktree 1
+wt rm 1              # Remove first worktree
 wt rm -b feature-x   # Remove worktree and delete branch
 wt status            # Show all branches and their worktree numbers
 ```
@@ -52,40 +53,23 @@ wt status            # Show all branches and their worktree numbers
 ## Directory Structure
 
 ```
-parent/
-  project/                    # Main repo (home, [0])
-  project-worktrees/
-    project-worktree-1/       # [1]
-    project-worktree-2/       # [2]
+project/                          # Main repo (home)
+  .claude/
+    worktrees/
+      feature-x/                  # [1:feature-x]  (branch: worktree-feature-x)
+      fix-bug/                    # [2:fix-bug]    (branch: worktree-fix-bug)
 ```
 
-## Configuration
+Numeric indices are assigned alphabetically: `feature-x` sorts before `fix-bug`, so `wt 1` goes to `feature-x` and `wt 2` goes to `fix-bug`.
 
-Create a `.worktree` file in your repo root:
+## Claude Code Interop
 
-```ini
-[copy]
-# Files to copy when creating a new worktree
-.env
-**/.claude/settings.local.json
+`wt` uses the same directory layout as Claude Code's built-in worktree support (`claude -w`):
 
-[setup]
-# Commands run from parent dir after worktree creation
-# $WT_DIR is the path to the new worktree
-mise trust "$WT_DIR"
+- Worktrees live in `.claude/worktrees/<name>/`
+- Branches are prefixed `worktree-<name>`
 
-[init]
-# Commands run inside the new worktree after creation
-npm install
-```
-
-### Sections
-
-- **[copy]** - Glob patterns for files to copy from home repo to new worktrees. Supports `**` for recursive matching.
-- **[setup]** - Commands run from the parent directory after `git worktree add`. Use `$WT_DIR` to reference the new worktree path. Useful for `mise trust`, `direnv allow`, etc.
-- **[init]** - Commands run inside the new worktree. Useful for `npm install`, `bundle install`, etc.
-
-> **Note:** You can globally ignore `.worktree` files by adding them to `~/.config/git/ignore`.
+Worktrees created by either tool are visible to both.
 
 ## Requirements
 
