@@ -3,7 +3,7 @@ wt() {
     cat <<EOF
 usage:
   wt                        list worktrees
-  wt <#|name|branch>        go to worktree (creates worktree if branch exists)
+  wt <#|name|branch|HEAD>   go to worktree (create if missing; HEAD shares current branch)
   wt -b <name>              create new branch worktree-<name> and worktree
   wt -                      go to previous worktree
   wt rm <#|name|branch>     remove worktree
@@ -152,6 +152,7 @@ EOF
       }
       mkdir -p "$wt_base"
       git worktree add --force "$wt_dir" "$head_branch" || return 1
+      echo "wt: created '$wt_name' sharing branch '$head_branch' with $current_wt"
       _WT_PREV="$current_wt"
       cd "$wt_dir"
       return
