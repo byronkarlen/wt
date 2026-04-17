@@ -2,7 +2,7 @@ wt() {
   _wt_usage() {
     cat <<EOF
 usage:
-  wt                        list worktrees (newest first, numbered by creation)
+  wt                        list worktrees (numbered by creation, oldest first)
   wt <#|name|branch|HEAD>   go to worktree (create if missing; HEAD shares current branch)
   wt -b <name>              create new branch worktree-<name> and worktree
   wt -                      go to previous worktree
@@ -327,21 +327,21 @@ EOF
       current_wt=$(git rev-parse --show-toplevel 2>/dev/null)
       home_branch=$(git -C "$home_repo" branch --show-current 2>/dev/null)
 
-      # Worktree paths sorted oldest-first (for numbering), displayed newest-first
+      # Home at [0] at the top
+      [[ "$current_wt" == "$home_repo" ]] && marker="*" || marker=" "
+      printf "%s [0] %s\n" "$marker" "$home_branch"
+
+      # Worktrees in ascending number order (oldest first)
       local paths_output=$(_wt_sorted_paths)
       local -a paths
       [[ -n "$paths_output" ]] && paths=("${(@f)paths_output}")
       local n=${#paths[@]} i
-      for (( i=n; i>=1; i-- )); do
+      for (( i=1; i<=n; i++ )); do
         wt_dir="${paths[$i]}"
         branch=$(_wt_get_branch "$wt_dir")
         [[ "$current_wt" == "$wt_dir" ]] && marker="*" || marker=" "
         printf "%s [%d] %s\n" "$marker" "$i" "$branch"
       done
-
-      # Home at [0] at the bottom (lowest number last)
-      [[ "$current_wt" == "$home_repo" ]] && marker="*" || marker=" "
-      printf "%s [0] %s\n" "$marker" "$home_branch"
       ;;
   esac
 }

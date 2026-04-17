@@ -26,7 +26,7 @@ A zsh function for managing git worktrees with minimal friction. Compatible with
 ## Usage
 
 ```
-wt                        list worktrees (newest first, home at bottom)
+wt                        list worktrees (home at top, then oldest to newest)
 wt <#|name|branch|HEAD>   go to worktree (create if missing; HEAD shares current branch)
 wt -b <name>              create new branch worktree-<name> and worktree
 wt -                      go to previous worktree
@@ -58,7 +58,7 @@ project/                          # Main repo (home, always [0])
       fix-bug/                    # (branch: worktree-fix-bug)
 ```
 
-Numeric indices are assigned by creation time (oldest = `[1]`, newer = higher numbers), so a new worktree never changes existing numbers. The listing displays newest first, with home (`[0]`) at the bottom. Removing a worktree shifts down the numbers above it; the order they were created in is preserved.
+Numeric indices are assigned by creation time (oldest = `[1]`, newer = higher numbers), so a new worktree never changes existing numbers. The listing shows home (`[0]`) at the top, then worktrees in ascending number order. Removing a worktree shifts down the numbers above it; the relative creation order is preserved.
 
 ## Claude Code Interop
 

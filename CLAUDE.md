@@ -29,7 +29,7 @@ The `wt` file contains a single zsh function with nested helper functions:
 - Worktrees are stored in `<repo>/.claude/worktrees/<name>/`
 - Branch naming: `worktree-<name>` (e.g., `wt -b foo` creates branch `worktree-foo`)
 - Numeric indices (`wt 1`, `wt 2`) come from `_wt_sorted_paths`: real worktrees under `.claude/worktrees/` that are on a branch, sorted by directory mtime ascending (oldest = `[1]`). New worktrees always get the next unused number; creation never shifts existing numbers. Removal shifts down numbers above the removed one.
-- Listing displays newest-first (highest number at top), with home `[0]` at the bottom.
+- Listing displays home `[0]` at the top, then worktrees in ascending number order.
 - Detached-HEAD worktrees and stale directories (not registered with git) are filtered out of both listing and numeric resolution. They are still reachable by name or branch.
 - `wt HEAD` uses `git worktree add --force` to create a worktree sharing the current branch with the caller's directory.
 - `$_WT_PREV` global tracks previous worktree for `wt -` navigation
