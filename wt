@@ -42,6 +42,9 @@ EOF
     echo "$name"
   }
 
+  # Slugify a branch name into a safe single-segment directory name
+  _wt_slug() { echo "${1//\//-}" }
+
   # Find worktree directory by branch name
   _wt_find_by_branch() {
     local target_branch="$1"
@@ -112,7 +115,7 @@ EOF
 
     # 4b. Try with worktree- prefix stripped (as dir name)
     if [[ "$target" == worktree-* ]]; then
-      local stripped="${target#worktree-}"
+      local stripped=$(_wt_slug "${target#worktree-}")
       if [[ -d "$wt_base/$stripped" ]]; then
         echo "$wt_base/$stripped"
         return
@@ -158,6 +161,7 @@ EOF
       }
       local wt_name="$head_branch"
       [[ "$wt_name" == worktree-* ]] && wt_name="${wt_name#worktree-}"
+      wt_name=$(_wt_slug "$wt_name")
       wt_dir="$wt_base/$wt_name"
       [[ -d "$wt_dir" ]] && {
         echo "wt: worktree '$wt_name' already exists" >&2
@@ -200,6 +204,7 @@ EOF
       # Derive worktree name: strip worktree- prefix if present
       local wt_name="$branch_name"
       [[ "$wt_name" == worktree-* ]] && wt_name="${wt_name#worktree-}"
+      wt_name=$(_wt_slug "$wt_name")
 
       wt_dir="$wt_base/$wt_name"
       mkdir -p "$wt_base"
@@ -220,6 +225,7 @@ EOF
     if [[ -n "$remote_branch" ]]; then
       local wt_name="$remote_branch"
       [[ "$wt_name" == worktree-* ]] && wt_name="${wt_name#worktree-}"
+      wt_name=$(_wt_slug "$wt_name")
 
       wt_dir="$wt_base/$wt_name"
       mkdir -p "$wt_base"
@@ -241,8 +247,10 @@ EOF
       return 1
     }
 
-    [[ -d "$wt_base/$name" ]] && {
-      echo "wt: worktree '$name' already exists" >&2
+    local wt_name=$(_wt_slug "$name")
+
+    [[ -d "$wt_base/$wt_name" ]] && {
+      echo "wt: worktree '$wt_name' already exists" >&2
       return 1
     }
 
@@ -263,7 +271,7 @@ EOF
     fi
 
     local current_wt=${current_wt:-$(git rev-parse --show-toplevel 2>/dev/null)}
-    local wt_dir="$wt_base/$name"
+    local wt_dir="$wt_base/$wt_name"
     mkdir -p "$wt_base"
 
     if git show-ref --verify --quiet "refs/heads/$branch"; then
