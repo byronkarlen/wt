@@ -8,8 +8,8 @@ A zsh function for managing git worktrees with minimal friction. Compatible with
 - Short numeric aliases for worktrees (`wt 1`, `wt 2`, etc.)
 - `wt 0` or `wt home` to return to main repo
 - `wt -` to jump to previous worktree
-- Auto-creates worktree when navigating to an existing branch
-- `wt status` overview of all branches and worktrees
+- Auto-creates worktree when navigating to an existing local or remote branch
+- `wt HEAD` creates a worktree sharing the current branch with your current directory
 
 ## Recommended Installation
 
@@ -26,41 +26,39 @@ A zsh function for managing git worktrees with minimal friction. Compatible with
 ## Usage
 
 ```
-wt [go] <#|name|branch>   go to worktree (creates if branch exists)
-wt [go] 0|home            go to main repo
-wt [go] -                 go to previous worktree
-wt new [name]             create new worktree (branch: worktree-<name>)
-                            (no name: move current branch from home)
+wt                        list worktrees (newest first, home at bottom)
+wt <#|name|branch|HEAD>   go to worktree (create if missing; HEAD shares current branch)
+wt -b <name>              create new branch worktree-<name> and worktree
+wt -                      go to previous worktree
 wt rm <#|name|branch>     remove worktree
 wt rm -b <#|name|branch>  remove worktree and delete branch
-wt list                   list worktrees (raw)
-wt status                 show branches and worktree status
 ```
 
 ### Examples
 
 ```bash
-wt new feature-x     # Create .claude/worktrees/feature-x/ with branch worktree-feature-x
-wt 1                 # Go to first worktree (alphabetical order)
-wt feature-x         # Go to worktree by name
+wt -b feature-x      # Create .claude/worktrees/feature-x/ with branch worktree-feature-x
+wt 1                 # Go to worktree numbered [1]
+wt feature-x         # Go to worktree by name (auto-creates from local or remote branch)
+wt origin-branch     # Creates worktree tracking origin/origin-branch if it exists
+wt HEAD              # Create worktree for current branch (shared with current dir)
 wt 0                 # Go back to main repo
 wt -                 # Go to previous worktree
-wt rm 1              # Remove first worktree
+wt rm 1              # Remove worktree numbered [1]
 wt rm -b feature-x   # Remove worktree and delete branch
-wt status            # Show all branches and their worktree numbers
 ```
 
 ## Directory Structure
 
 ```
-project/                          # Main repo (home)
+project/                          # Main repo (home, always [0])
   .claude/
     worktrees/
-      feature-x/                  # [1:feature-x]  (branch: worktree-feature-x)
-      fix-bug/                    # [2:fix-bug]    (branch: worktree-fix-bug)
+      feature-x/                  # (branch: worktree-feature-x)
+      fix-bug/                    # (branch: worktree-fix-bug)
 ```
 
-Numeric indices are assigned alphabetically: `feature-x` sorts before `fix-bug`, so `wt 1` goes to `feature-x` and `wt 2` goes to `fix-bug`.
+Numeric indices are assigned by creation time (oldest = `[1]`, newer = higher numbers), so a new worktree never changes existing numbers. The listing displays newest first, with home (`[0]`) at the bottom. Removing a worktree shifts down the numbers above it; the order they were created in is preserved.
 
 ## Claude Code Interop
 

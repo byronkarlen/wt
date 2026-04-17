@@ -19,6 +19,7 @@ The `wt` file contains a single zsh function with nested helper functions:
 - `_wt_random_name` - Generates random adjective-animal names for fallback naming
 - `_wt_find_by_branch` - Locates worktree directory by branch name (uses awk)
 - `_wt_get_branch` - Gets branch name for a worktree path (uses awk)
+- `_wt_sorted_paths` - Returns real worktree paths under `$wt_base` that are on a branch, sorted oldest-first by mtime
 - `_wt_resolve_target` - Resolves a target (name, number, branch) to a worktree path
 - `_wt_go` - Core navigation logic for switching between worktrees
 - `_wt_usage` - Prints usage information
@@ -26,6 +27,9 @@ The `wt` file contains a single zsh function with nested helper functions:
 ## Key Conventions
 
 - Worktrees are stored in `<repo>/.claude/worktrees/<name>/`
-- Branch naming: `worktree-<name>` (e.g., `wt new foo` creates branch `worktree-foo`)
-- Numeric indices (`wt 1`, `wt 2`) are assigned by alphabetically sorting worktree directory names
+- Branch naming: `worktree-<name>` (e.g., `wt -b foo` creates branch `worktree-foo`)
+- Numeric indices (`wt 1`, `wt 2`) come from `_wt_sorted_paths`: real worktrees under `.claude/worktrees/` that are on a branch, sorted by directory mtime ascending (oldest = `[1]`). New worktrees always get the next unused number; creation never shifts existing numbers. Removal shifts down numbers above the removed one.
+- Listing displays newest-first (highest number at top), with home `[0]` at the bottom.
+- Detached-HEAD worktrees and stale directories (not registered with git) are filtered out of both listing and numeric resolution. They are still reachable by name or branch.
+- `wt HEAD` uses `git worktree add --force` to create a worktree sharing the current branch with the caller's directory.
 - `$_WT_PREV` global tracks previous worktree for `wt -` navigation

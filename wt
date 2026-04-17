@@ -2,7 +2,7 @@ wt() {
   _wt_usage() {
     cat <<EOF
 usage:
-  wt                        list worktrees
+  wt                        list worktrees (newest first, numbered by creation)
   wt <#|name|branch|HEAD>   go to worktree (create if missing; HEAD shares current branch)
   wt -b <name>              create new branch worktree-<name> and worktree
   wt -                      go to previous worktree
@@ -60,6 +60,20 @@ EOF
     '
   }
 
+  # Real worktree paths under $wt_base that are on a branch, sorted by mtime
+  # ascending (oldest first). New worktrees get the next number; existing
+  # numbers are stable across creations. Removal shifts numbers after the hole.
+  _wt_sorted_paths() {
+    git worktree list --porcelain | awk -v base="$wt_base/" '
+      /^worktree / { path = substr($0, 10) }
+      /^branch refs\/heads\// {
+        if (index(path, base) == 1) print path
+      }
+    ' | while IFS= read -r path; do
+      printf "%s\t%s\n" "$(stat -f %m "$path" 2>/dev/null || stat -c %Y "$path" 2>/dev/null)" "$path"
+    done | sort -n | cut -f2-
+  }
+
   # Resolve a target to a worktree path
   _wt_resolve_target() {
     local target="$1"
@@ -70,15 +84,14 @@ EOF
       return
     fi
 
-    # 2. Numeric index into alphabetically-sorted dirs
+    # 2. Numeric index into mtime-sorted paths (oldest = 1, newest = N)
     if [[ "$target" =~ ^[0-9]+$ ]]; then
-      local -a sorted_dirs
-      if [[ -d "$wt_base" ]]; then
-        sorted_dirs=($(ls -1 "$wt_base" 2>/dev/null | sort))
-      fi
+      local paths_output=$(_wt_sorted_paths)
+      local -a paths
+      [[ -n "$paths_output" ]] && paths=("${(@f)paths_output}")
       local idx=$target
-      if (( idx >= 1 && idx <= ${#sorted_dirs[@]} )); then
-        echo "$wt_base/${sorted_dirs[$idx]}"
+      if (( idx >= 1 && idx <= ${#paths[@]} )); then
+        echo "${paths[$idx]}"
         return
       fi
     fi
@@ -314,23 +327,21 @@ EOF
       current_wt=$(git rev-parse --show-toplevel 2>/dev/null)
       home_branch=$(git -C "$home_repo" branch --show-current 2>/dev/null)
 
-      # Home at [0]
+      # Worktree paths sorted oldest-first (for numbering), displayed newest-first
+      local paths_output=$(_wt_sorted_paths)
+      local -a paths
+      [[ -n "$paths_output" ]] && paths=("${(@f)paths_output}")
+      local n=${#paths[@]} i
+      for (( i=n; i>=1; i-- )); do
+        wt_dir="${paths[$i]}"
+        branch=$(_wt_get_branch "$wt_dir")
+        [[ "$current_wt" == "$wt_dir" ]] && marker="*" || marker=" "
+        printf "%s [%d] %s\n" "$marker" "$i" "$branch"
+      done
+
+      # Home at [0] at the bottom (lowest number last)
       [[ "$current_wt" == "$home_repo" ]] && marker="*" || marker=" "
       printf "%s [0] %s\n" "$marker" "$home_branch"
-
-      # Worktree dirs, alphabetically indexed from 1
-      if [[ -d "$wt_base" ]]; then
-        local -a sorted_dirs
-        sorted_dirs=($(ls -1 "$wt_base" 2>/dev/null | sort))
-        local idx=0
-        for dir in "${sorted_dirs[@]}"; do
-          idx=$((idx + 1))
-          wt_dir="$wt_base/$dir"
-          branch=$(_wt_get_branch "$wt_dir")
-          [[ "$current_wt" == "$wt_dir" ]] && marker="*" || marker=" "
-          printf "%s [%d] %s\n" "$marker" "$idx" "${branch:-?}"
-        done
-      fi
       ;;
   esac
 }
