@@ -5,9 +5,7 @@ usage:
   wt                        list worktrees
   wt <#|name|branch>        go to worktree (creates worktree if branch exists)
   wt -b <name>              create new branch worktree-<name> and worktree
-  wt 0                      go to main repo
   wt -                      go to previous worktree
-  wt eject                  move current branch from home into a worktree
   wt rm <#|name|branch>     remove worktree
   wt rm -b <#|name|branch>  remove worktree and delete branch
 EOF
@@ -136,21 +134,38 @@ EOF
       return
     fi
 
-    # Check if it's the home repo's branch
+    local wt_dir
+
+    # HEAD -> create worktree for current branch (shares branch via --force)
+    if [[ "$target" == "HEAD" ]]; then
+      local head_branch=$(git branch --show-current 2>/dev/null)
+      [[ -z "$head_branch" ]] && {
+        echo "wt: not on a branch (detached HEAD)" >&2
+        return 1
+      }
+      local wt_name="$head_branch"
+      [[ "$wt_name" == worktree-* ]] && wt_name="${wt_name#worktree-}"
+      wt_dir="$wt_base/$wt_name"
+      [[ -d "$wt_dir" ]] && {
+        echo "wt: worktree '$wt_name' already exists" >&2
+        return 1
+      }
+      mkdir -p "$wt_base"
+      git worktree add --force "$wt_dir" "$head_branch" || return 1
+      _WT_PREV="$current_wt"
+      cd "$wt_dir"
+      return
+    fi
+
+    # If target is home's checked-out branch and we're elsewhere, go to home
     local home_branch=$(git -C "$home_repo" branch --show-current 2>/dev/null)
-    if [[ "$target" == "$home_branch" ]]; then
-      # If we're in home, eject the branch to a new worktree
-      if [[ "$current_wt" == "$home_repo" ]]; then
-        wt eject
-        return
-      fi
+    if [[ "$target" == "$home_branch" && "$current_wt" != "$home_repo" ]]; then
       _WT_PREV="$current_wt"
       cd "$home_repo"
       return
     fi
 
     # Use centralized resolution
-    local wt_dir
     wt_dir=$(_wt_resolve_target "$target")
 
     if [[ -n "$wt_dir" && -d "$wt_dir" ]]; then
@@ -249,44 +264,6 @@ EOF
   fi
 
   case "$1" in
-    eject)
-      local current_wt=$(git rev-parse --show-toplevel 2>/dev/null)
-      [[ "$current_wt" != "$home_repo" ]] && {
-        echo "wt: eject is only allowed from main repo" >&2
-        return 1
-      }
-
-      branch=$(git branch --show-current 2>/dev/null)
-      [[ -z "$branch" ]] && {
-        echo "wt: not on a branch" >&2
-        return 1
-      }
-      [[ "$branch" == "main" ]] && {
-        echo "wt: already on main, nothing to eject" >&2
-        return 1
-      }
-
-      # Derive name from branch (strip worktree- prefix if present)
-      local name="$branch"
-      [[ "$name" == worktree-* ]] && name="${name#worktree-}"
-
-      local wt_dir="$wt_base/$name"
-      [[ -d "$wt_dir" ]] && {
-        echo "wt: worktree '$name' already exists" >&2
-        return 1
-      }
-
-      git checkout main || {
-        echo "wt: could not checkout main in home" >&2
-        return 1
-      }
-
-      mkdir -p "$wt_base"
-      git worktree add "$wt_dir" "$branch" || return 1
-      _WT_PREV="$current_wt"
-      cd "$wt_dir"
-      ;;
-
     rm)
       local delete_branch=false
       [[ "$2" == "-b" ]] && { delete_branch=true; shift; }
@@ -332,46 +309,27 @@ EOF
         return
       fi
 
-      local current_branch home_branch
-      current_branch=$(git branch --show-current 2>/dev/null)
+      local current_wt home_branch marker wt_dir
+      current_wt=$(git rev-parse --show-toplevel 2>/dev/null)
       home_branch=$(git -C "$home_repo" branch --show-current 2>/dev/null)
 
-      local -a worktree_lines
-      local marker wt_dir dir_name
+      # Home at [0]
+      [[ "$current_wt" == "$home_repo" ]] && marker="*" || marker=" "
+      printf "%s [0] %s\n" "$marker" "$home_branch"
 
-      # Get sorted worktree names for indexing
-      local -a sorted_dirs
+      # Worktree dirs, alphabetically indexed from 1
       if [[ -d "$wt_base" ]]; then
+        local -a sorted_dirs
         sorted_dirs=($(ls -1 "$wt_base" 2>/dev/null | sort))
+        local idx=0
+        for dir in "${sorted_dirs[@]}"; do
+          idx=$((idx + 1))
+          wt_dir="$wt_base/$dir"
+          branch=$(_wt_get_branch "$wt_dir")
+          [[ "$current_wt" == "$wt_dir" ]] && marker="*" || marker=" "
+          printf "%s [%d] %s\n" "$marker" "$idx" "${branch:-?}"
+        done
       fi
-
-      while read -r branch; do
-        [[ "$branch" == "$current_branch" ]] && marker="*" || marker=" "
-
-        if [[ "$branch" == "$home_branch" ]]; then
-          worktree_lines=("$(printf "%06d %s [0] %s" 0 "$marker" "$branch")" "${worktree_lines[@]}")
-        else
-          wt_dir=$(_wt_find_by_branch "$branch")
-          if [[ -n "$wt_dir" ]]; then
-            dir_name=$(basename "$wt_dir")
-            local idx=0
-            for (( i=1; i<=${#sorted_dirs[@]}; i++ )); do
-              if [[ "${sorted_dirs[$i]}" == "$dir_name" ]]; then
-                idx=$i
-                break
-              fi
-            done
-            if (( idx > 0 )); then
-              worktree_lines+=("$(printf "%06d %s [%s] %s" "$idx" "$marker" "$idx" "$branch")")
-            else
-              worktree_lines+=("$(printf "999999 %s [?] %s" "$marker" "$branch")")
-            fi
-          fi
-        fi
-      done < <(git for-each-ref --format='%(refname:short)' refs/heads/)
-
-      # Print worktrees sorted by number, strip the sort key
-      printf '%s\n' "${worktree_lines[@]}" | sort -n | sed 's/^[0-9]* //'
       ;;
   esac
 }
