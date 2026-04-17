@@ -26,7 +26,7 @@ A zsh function for managing git worktrees with minimal friction. Compatible with
 ## Usage
 
 ```
-wt                        list worktrees (home at top, then oldest to newest)
+wt                        list worktrees
 wt <#|name|branch|HEAD>   go to worktree (create if missing; HEAD shares current branch)
 wt -b <name>              create new branch worktree-<name> and worktree
 wt -                      go to previous worktree
