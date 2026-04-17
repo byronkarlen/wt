@@ -28,7 +28,7 @@ A zsh function for managing git worktrees with minimal friction. Compatible with
 ```
 wt                        list worktrees
 wt <#|name|branch|HEAD>   go to worktree (create if missing; HEAD shares current branch)
-wt -b <name>              create new branch worktree-<name> and worktree
+wt -b <name>              create worktree at .claude/worktrees/<name>/ on branch worktree-<name>
 wt -                      go to previous worktree
 wt rm <#|name|branch>     remove worktree
 wt rm -b <#|name|branch>  remove worktree and delete branch
